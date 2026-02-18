@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synesthesia Painter</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: 'Space Mono', monospace;
+        }
+        
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        #ui-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+        }
+        
+        .ui-panel {
+            pointer-events: auto;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        #title-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            padding: 60px 80px;
+        }
+        
+        h1 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 72px;
+            letter-spacing: 8px;
+            background: linear-gradient(135deg, #0ff, #f0f, #ff0, #0f0, #00f, #f0f);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: shimmer 4s ease infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes shimmer {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        
+        .subtitle {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            letter-spacing: 4px;
+            margin-bottom: 40px;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #fff;
+            padding: 16px 48px;
+            font-family: 'Space Mono', monospace;
+            font-size: 14px;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+        
+        .btn:hover {
+            background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.1));
+            border-color: rgba(255, 255, 255, 0.6);
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
+        }
+        
+        #level-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 20px 30px;
+        }
+        
+        .level-text {
+            color: #fff;
+            font-size: 24px;
+            font-family: 'Bebas Neue', sans-serif;
+            letter-spacing: 2px;
+        }
+        
+        .target-chord {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+            margin-top: 8px;
+            letter-spacing: 1px;
+        }
+        
+        #palette {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            padding: 20px 30px;
+        }
+        
+        .color-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .color-btn::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.3), transparent);
+            transform: rotate(45deg);
+            animation: chrome-shine 3s ease infinite;
+        }
+        
+        @keyframes chrome-shine {
+            0%, 100% { transform: translateX(-100%) rotate(45deg); }
+            50% { transform: translateX(100%) rotate(45deg); }
+        }
+        
+        .color-btn:hover {
+            transform: scale(1.2);
+            border-color: #fff;
+            box-shadow: 0 0 30px currentColor;
+        }
+        
+        .color-btn.active {
+            border-color: #fff;
+            transform: scale(1.15);
+            box-shadow: 0 0 40px currentColor, inset 0 0 20px rgba(255,255,255,0.3);
+        }
+        
+        .color-btn[data-color="cyan"] { background: #00ffff; color: #00ffff; }
+        .color-btn[data-color="magenta"] { background: #ff00ff; color: #ff00ff; }
+        .color-btn[data-color="yellow"] { background: #ffff00; color: #ffff00; }
+        .color-btn[data-color="red"] { background: #ff3333; color: #ff3333; }
+        .color-btn[data-color="green"] { background: #33ff33; color: #33ff33; }
+        .color-btn[data-color="blue"] { background: #3333ff; color: #3333ff; }
+        .color-btn[data-color="purple"] { background: #9933ff; color: #9933ff; }
+        
+        #score-display {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            text-align: right;
+        }
+        
+        .score-text {
+            color: #fff;
+            font-size: 18px;
+            letter-spacing: 2px;
+        }
+        
+        .harmony-bar {
+            margin-top: 10px;
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .harmony-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #0ff, #f0f);
+            transition: width 0.5s ease;
+        }
+        
+        #message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 30px 60px;
+            font-size: 24px;
+            letter-spacing: 4px;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            text-align: center;
+        }
+        
+        #message.show {
+            opacity: 1;
+        }
+        
+        #message.success {
+            border-color: #0f0;
+            color: #0f0;
+            text-shadow: 0 0 20px #0f0;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.5);
+            font-size: 12px;
+            letter-spacing: 2px;
+            text-align: center;
+        }
+        
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="ui-overlay">
+        <div id="title-screen" class="ui-panel">
+            <h1>SYNESTHESIA</h1>
+            <p class="subtitle">PAINTER</p>
+            <button class="btn" id="start-btn">BEGIN</button>
+            <p style="color: rgba(255,255,255,0.4); margin-top: 30px; font-size: 11px; letter-spacing: 2px;">
+                PAINT WITH SOUND • CREATE HARMONY
+            </p>
+        </div>
+        
+        <div id="game-ui" class="hidden">
+            <div id="level-info" class="ui-panel">
+                <div class="level-text">LEVEL <span id="level-num">1</span></div>
+                <div class="target-chord">TARGET: <span id="target-notes">C4 E4 G4</span></div>
+            </div>
+            
+            <div id="score-display" class="ui-panel">
+                <div class="score-text">HARMONY: <span id="harmony-percent">0</span>%</div>
+                <div class="harmony-bar">
+                    <div class="harmony-fill" id="harmony-fill"></div>
+                </div>
+            </div>
+            
+            <div id="instructions">
+                SELECT COLORS TO PAINT • CREATE THE TARGET CHORD TO ADVANCE
+            </div>
+            
+            <div id="palette" class="ui-panel">
+                <button class="color-btn" data-color="cyan" data-note="C4" title="C4 - Sphere"></button>
+                <button class="color-btn" data-color="magenta" data-note="D4" title="D4 - Cube"></button>
+                <button class="color-btn" data-color="yellow" data-note="E4" title="E4 - Torus"></button>
+                <button class="color-btn" data-color="red" data-note="F4" title="F4 - Octahedron"></button>
+                <button class="color-btn" data-color="green" data-note="G4" title="G4 - Dodecahedron"></button>
+                <button class="color-btn" data-color="blue" data-note="A4" title="A4 - Icosahedron"></button>
+                <button class="color-btn" data-color="purple" data-note="B4" title="B4 - TorusKnot"></button>
+            </div>
+            
+            <div id="message" class="ui-panel"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    
+    <script>
+        // Game Configuration
+        const CONFIG = {
+            colors: {
+                cyan: { note: 'C4', hex: 0x00ffff, shape: 'sphere' },
+                magenta: { note: 'D4', hex: 0xff00ff, shape: 'box' },
+                yellow: { note: 'E4', hex: 0xffff00, shape: 'torus' },
+                red: { note: 'F4', hex: 0xff3333, shape: 'octahedron' },
+                green: { note: 'G4', hex: 0x33ff33, shape: 'dodecahedron' },
+                blue: { note: 'A4', hex: 0x3333ff, shape: 'icosahedron' },
+                purple: { note: 'B4', hex: 0x9933ff, shape: 'torusKnot' }
+            },
+            levels: [
+                { target: ['C4'], name: 'Single Note' },
+                { target: ['C4', 'E4'], name: 'Perfect 2nd' },
+                { target: ['C4', 'E4', 'G4'], name: 'Major Triad' },
+                { target: ['D4', 'F4', 'A4'], name: 'Minor Triad' },
+                { target: ['C4', 'E4', 'G4', 'B4'], name: 'Major 7th' },
+                { target: ['D4', 'F4', 'A4', 'C5'], name: 'Minor 7th' },
+                { target: ['C4', 'D4', 'E4', 'F4'], name: '4 Notes' },
+                { target: ['E4', 'G4', 'B4', 'D5'], name: 'Major 9th' },
+                { target: ['C4', 'E4', 'G4', 'A4', 'C5'], name: 'Add9 Chord' },
+                { target: ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4'], name: 'Full Scale' }
+            ]
+        };
+
+        // Game State
+        let gameState = {
+            level: 0,
+            activeColors: [],
+            synths: {},
+            isPlaying: false,
+            scene: null,
+            camera: null,
+            renderer: null,
+            shapes: [],
+            animationId: null
+        };
+
+        // Three.js Setup
+        function initThreeJS() {
+            const container = document.getElementById('canvas-container');
+            
+            gameState.scene = new THREE.Scene();
+            gameState.scene.background = new THREE.Color(0x000000);
+            
+            gameState.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            gameState.camera.position.z = 8;
+            
+            gameState.renderer = new THREE.WebGLRenderer({ antialias: true });
+            gameState.renderer.setSize(window.innerWidth, window.innerHeight);
+            gameState.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            container.appendChild(gameState.renderer.domElement);
+            
+            // Ambient light
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+            gameState.scene.add(ambientLight);
+            
+            // Point lights for chrome effect
+            const lights = [
+                { color: 0x00ffff, pos: [5, 5, 5] },
+                { color: 0xff00ff, pos: [-5, 5, 5] },
+                { color: 0xffff00, pos: [0, -5, 5] }
+            ];
+            
+            lights.forEach(l => {
+                const light = new THREE.PointLight(l.color, 1, 20);
+                light.position.set(...l.pos);
+                gameState.scene.add(light);
+            });
+            
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        function onWindowResize() {
+            gameState.camera.aspect = window.innerWidth / window.innerHeight;
+            gameState.camera.updateProjectionMatrix();
+            gameState.renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        function createChromeMaterial(color) {
+            return new THREE.MeshStandardMaterial({
+                color: color,
+                metalness: 0.9,
+                roughness: 0.1,
+                envMapIntensity: 1.5
+            });
+        }
+        
+        function createShape(type, color, index) {
+            let geometry;
+            switch(type) {
+                case 'sphere': geometry = new THREE.SphereGeometry(0.6, 32, 32); break;
+                case 'box': geometry = new THREE.BoxGeometry(0.9, 0.9, 0.9); break;
+                case 'torus': geometry = new THREE.TorusGeometry(0.5, 0.2, 16, 50); break;
+                case 'octahedron': geometry = new THREE.OctahedronGeometry(0.7); break;
+                case 'dodecahedron': geometry = new THREE.DodecahedronGeometry(0.6); break;
+                case 'icosahedron': geometry = new THREE.IcosahedronGeometry(0.65); break;
+                case 'torusKnot': geometry = new THREE.TorusKnotGeometry(0.4, 0.15, 64, 8); break;
+                default: geometry = new THREE.SphereGeometry(0.6, 32, 32);
+            }
+            
+            const material = createChromeMaterial(color);
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            // Position shapes in a row
+            const spacing = 1.8;
+            mesh.position.x = (index - 3) * spacing;
+            mesh.position.y = 0;
+            mesh.position.z = 0;
+            
+            // Store animation properties
+            mesh.userData = {
+                baseY: 0,
+                rotationSpeed: { x: 0.01, y: 0.015, z: 0.005 },
+                floatOffset: Math.random() * Math.PI * 2,
+                floatSpeed: 1 + Math.random() * 0.5,
+                floatAmplitude: 0.3
+            };
+            
+            return mesh;
+        }
+        
+        function updateShapes() {
+            const time = Date.now() * 0.001;
+            
+            gameState.shapes.forEach((shape, index) => {
+                // Rotation
+                shape.rotation.x += shape.userData.rotationSpeed.x;
+                shape.rotation.y += shape.userData.rotationSpeed.y;
+                shape.rotation.z += shape.userData.rotationSpeed.z;
+                
+                // Floating animation
+                shape.position.y = shape.userData.baseY + 
+                    Math.sin(time * shape.userData.floatSpeed + shape.userData.floatOffset) * 
+                    shape.userData.floatAmplitude;
+            });
+        }
+        
+        function render() {
+            gameState.animationId = requestAnimationFrame(render);
+            updateShapes();
+            gameState.renderer.render(gameState.scene, gameState.camera);
+        }
+        
+        // Audio Setup
+        async function initAudio() {
+            await Tone.start();
+            
+            // Create synths for each note
+            Object.keys(CONFIG.colors).forEach(color => {
+                const note = CONFIG.colors[color].note;
+                gameState.synths[color] = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: 'sine' },
+                    envelope: {
+                        attack: 0.02,
+                        decay: 0.1,
+                        sustain: 0.5,
+                        release: 0.8
+                    }
+                }).toDestination();
+                
+                // Add reverb
+                const reverb = new Tone.Reverb({ decay: 2, wet: 0.3 }).toDestination();
+                gameState.synths[color].connect(reverb);
+            });
+        }
+        
+        function playNote(color) {
+            const note = CONFIG.colors[color].note;
+            gameState.synths[color].triggerAttackRelease(note, '8n');
+        }
+        
+        function stopNote(color) {
+            gameState.synths[color].triggerRelease();
+        }
+        
+        // Game Logic
+        function loadLevel(levelIndex) {
+            const level = CONFIG.levels[levelIndex];
+            
+            // Clear existing shapes
+            gameState.shapes.forEach(shape => gameState.scene.remove(shape));
+            gameState.shapes = [];
+            gameState.activeColors = [];
+            
+            // Update UI
+            document.getElementById('level-num').textContent = levelIndex + 1;
+            document.getElementById('target-notes').textContent = level.target.join(' ');
+            document.getElementById('harmony-percent').textContent = '0';
+            document.getElementById('harmony-fill').style.width = '0%';
+            
+            // Clear palette selection
+            document.querySelectorAll('.color-btn').forEach(btn => btn.classList.remove('active'));
+            
+            // Show message
+            showMessage(`LEVEL ${levelIndex + 1}: ${level.name}`, 2000);
+        }
+        
+        function selectColor(color) {
+            const index = gameState.activeColors.indexOf(color);
+            
+            if (index === -1) {
+                // Add color
+                gameState.activeColors.push(color);
+                playNote(color);
+                
+                // Create shape
+                const shapeConfig = CONFIG.colors[color];
+                const shape = createShape(shapeConfig.shape, shapeConfig.hex, gameState.shapes.length);
+                gameState.scene.add(shape);
+                gameState.shapes.push(shape);
+            } else {
+                // Remove color
+                gameState.activeColors.splice(index, 1);
+                
+                // Remove shape
+                const shapeToRemove = gameState.shapes[index];
+                gameState.scene.remove(shapeToRemove);
+                gameState.shapes.splice(index, 1);
+                
+                // Reposition remaining shapes
+                gameState.shapes.forEach((shape, i) => {
+                    shape.position.x = (i - 3) * 1.8;
+                });
+            }
+            
+            updatePaletteUI();
+            checkHarmony();
+        }
+        
+        function updatePaletteUI() {
+            document.querySelectorAll('.color-btn').forEach(btn => {
+                const color = btn.dataset.color;
+                btn.classList.toggle('active', gameState.activeColors.includes(color));
+            });
+        }
+        
+        function checkHarmony() {
+            const target = CONFIG.levels[gameState.level].target;
+            const activeNotes = gameState.activeColors.map(c => CONFIG.colors[c].note);
+            
+            // Calculate harmony percentage
+            const matchedNotes = target.filter(note => activeNotes.includes(note));
+            const harmonyPercent = Math.round((matchedNotes.length / target.length) * 100);
+            
+            document.getElementById('harmony-percent').textContent = harmonyPercent;
+            document.getElementById('harmony-fill').style.width = harmonyPercent + '%';
+            
+            // Check if target is met
+            if (harmonyPercent === 100 && activeNotes.length >= target.length) {
+                levelComplete();
+            }
+        }
+        
+        function levelComplete() {
+            showMessage('HARMONY ACHIEVED!', 2000);
+            
+            setTimeout(() => {
+                gameState.level++;
+                
+                if (gameState.level >= CONFIG.levels.length) {
+                    // Game complete
+                    showMessage('TRANSCENDENCE COMPLETE!', 3000);
+                    setTimeout(() => {
+                        gameState.level = 0;
+                        loadLevel(0);
+                    }, 3000);
+                } else {
+                    loadLevel(gameState.level);
+                }
+            }, 2000);
+        }
+        
+        function showMessage(text, duration) {
+            const msgEl = document.getElementById('message');
+            msgEl.textContent = text;
+            msgEl.classList.add('show', 'success');
+            
+            setTimeout(() => {
+                msgEl.classList.remove('show', 'success');
+            }, duration);
+        }
+        
+        // Event Handlers
+        function setupEventListeners() {
+            // Start button
+            document.getElementById('start-btn').addEventListener('click', async () => {
+                await initAudio();
+                document.getElementById('title-screen').classList.add('hidden');
+                document.getElementById('game-ui').classList.remove('hidden');
+                gameState.isPlaying = true;
+                loadLevel(0);
+            });
+            
+            // Color palette buttons
+            document.querySelectorAll('.color-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (gameState.isPlaying) {
+                        selectColor(btn.dataset.color);
+                    }
+                });
+                
+                // Mouse down/up for note sustain
+                btn.addEventListener('mousedown', () => {
+                    if (gameState.isPlaying && !btn.classList.contains('active')) {
+                        playNote(btn.dataset.color);
+                    }
+                });
+            });
+            
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (!gameState.isPlaying) return;
+                
+                const keyMap = {
+                    '1': 'cyan', '2': 'magenta', '3': 'yellow',
+                    '4': 'red', '5': 'green', '6': 'blue', '7': 'purple'
+                };
+                
+                if (keyMap[e.key]) {
+                    selectColor(keyMap[e.key]);
+                }
+            });
+        }
+        
+        // Initialize
+        function init() {
+            initThreeJS();
+            setupEventListeners();
+            render();
+        }
+        
+        // Start
+        init();
+    </script>
+</body>
+</html>
